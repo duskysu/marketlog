@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MarketLog — 金融行情追蹤器</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Spectral:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #111820;
+    --surface2: #171f2a;
+    --border: #1e2d3d;
+    --accent: #00d4aa;
+    --accent2: #f7931a;
+    --red: #ff4757;
+    --green: #00d4aa;
+    --text: #c8d6e5;
+    --text2: #6b8299;
+    --text3: #3d5168;
+    --gold: #e8c97a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px; min-height: 100vh; }
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: baseline; gap: 12px; }
+  .logo { font-family: 'Spectral', serif; font-size: 20px; font-weight: 300; color: var(--accent); letter-spacing: 0.05em; }
+  .logo-sub { color: var(--text2); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; }
+  .free-badge { background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.25); border-radius: 3px; font-size: 9px; padding: 2px 8px; letter-spacing: 0.1em; }
+  .tabs { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 3px; }
+  .tab { padding: 6px 18px; border-radius: 4px; cursor: pointer; font-size: 11px; letter-spacing: 0.08em; color: var(--text2); border: none; background: transparent; font-family: 'DM Mono', monospace; transition: all 0.15s; }
+  .tab.active { background: var(--surface2); color: var(--accent); border: 1px solid var(--border); }
+  .tab:hover:not(.active) { color: var(--text); }
+  .main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+  .date-input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; flex-wrap: wrap; }
+  .date-input-row label { color: var(--text2); font-size: 11px; letter-spacing: 0.1em; white-space: nowrap; }
+  input[type="date"], input[type="month"] { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 7px 12px; font-family: 'DM Mono', monospace; font-size: 12px; outline: none; cursor: pointer; }
+  input[type="date"]:focus, input[type="month"]:focus { border-color: var(--accent); }
+  .fetch-btn { background: var(--accent); color: var(--bg); border: none; border-radius: 4px; padding: 8px 20px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; cursor: pointer; letter-spacing: 0.08em; transition: all 0.15s; white-space: nowrap; }
+  .fetch-btn:hover { background: #00f0c0; }
+  .fetch-btn:disabled { background: var(--text3); cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; margin-left: auto; }
+  .export-btn, .copy-btn { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); padding: 5px 14px; font-family: 'DM Mono', monospace; font-size: 10px; cursor: pointer; letter-spacing: 0.08em; transition: all 0.15s; white-space: nowrap; }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .card-header { padding: 11px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text2); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .tag-tw { background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.2); }
+  .tag-us { background: rgba(247,147,26,0.1); color: var(--accent2); border: 1px solid rgba(247,147,26,0.2); }
+  .tag-fx { background: rgba(232,201,122,0.1); color: var(--gold); border: 1px solid rgba(232,201,122,0.2); }
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table .label { color: var(--text2); font-size: 11px; }
+  .data-table .value { text-align: right; font-size: 13px; color: var(--text); font-weight: 500; min-width: 100px; }
+  .data-table .change { text-align: right; font-size: 10px; width: 70px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .neutral { color: var(--text2); }
+  .placeholder { color: var(--text3) !important; }
+  .manual { color: var(--gold) !important; font-size: 10px; }
+  .status-bar { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 11px 16px; margin-bottom: 18px; font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 10px; min-height: 40px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+  .status-dot.loading { background: var(--accent2); animation: pulse 1s infinite; }
+  .status-dot.done { background: var(--accent); }
+  .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; margin-top: 8px; }
+  .section-title { font-family: 'Spectral', serif; font-style: italic; font-size: 13px; color: var(--text2); }
+  .summary-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 18px; white-space: pre-wrap; font-size: 12px; line-height: 2; color: var(--text); min-height: 64px; }
+  .note { font-size: 10px; color: var(--text3); padding: 6px 16px 10px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .editable { cursor: text; }
+  .editable:focus { outline: 1px solid var(--accent); border-radius: 2px; color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">MarketLog</span>
+    <span class="logo-sub">金融行情追蹤器</span>
+    <span class="free-badge">完全免費</span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('daily',this)">每日行情</button>
+    <button class="tab" onclick="switchTab('monthly',this)">每月總經</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- DAILY PAGE -->
+  <div class="page active" id="page-daily">
+    <div class="date-input-row">
+      <label>查詢日期</label>
+      <input type="date" id="daily-date">
+      <button class="fetch-btn" id="daily-btn" onclick="fetchDaily()">取得行情</button>
+      <div class="btn-row">
+        <button class="export-btn" onclick="exportText('daily')">匯出 .txt</button>
+        <button class="export-btn" onclick="exportCSV('daily')">匯出 .csv</button>
+      </div>
+    </div>
+    <div class="status-bar" id="daily-status">
+      <div class="status-dot" id="daily-dot"></div>
+      <span id="daily-status-txt">選擇日期後點「取得行情」。數據來源：Yahoo Finance（即時）＋ Gemini AI 摘要。</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">美國主要指數</span><span class="tag tag-us">US EQUITY</span></div>
+        <table class="data-table" id="t-us">
+          <tr><td class="label">道瓊工業 DJIA</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">S&amp;P 500</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">那斯達克 NASDAQ</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">費城半導體 SOX</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">羅素 2000</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">台灣市場</span><span class="tag tag-tw">TW MARKET</span></div>
+        <table class="data-table" id="t-tw">
+          <tr><td class="label">台灣加權指數 TAIEX</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">台積電 2330.TW (TWD)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">新台幣匯率 USD/TWD</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header"><span class="card-title">債券市場</span><span class="tag tag-us">BONDS</span></div>
+        <table class="data-table" id="t-bonds">
+          <tr><td class="label">美國10年期公債殖利率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">美國2年期公債殖利率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">美國30年期公債殖利率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">iShares AGG ETF</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">外匯市場</span><span class="tag tag-fx">FX</span></div>
+        <table class="data-table" id="t-fx">
+          <tr><td class="label">DXY 美元指數</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">EUR/USD</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">USD/JPY</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">黃金 XAU/USD</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">能源 &amp; 加密</span><span class="tag tag-us">CMX</span></div>
+        <table class="data-table" id="t-energy">
+          <tr><td class="label">WTI 原油 (USD/桶)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">Brent 原油 (USD/桶)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">比特幣 BTC/USD</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title">Gemini AI 每日行情摘要</span>
+      <button class="copy-btn" onclick="copyEl('daily-summary')">複製</button>
+    </div>
+    <div class="summary-box" id="daily-summary">查詢後將自動生成當日行情摘要…</div>
+  </div>
+
+  <!-- MONTHLY PAGE -->
+  <div class="page" id="page-monthly">
+    <div class="date-input-row">
+      <label>查詢月份</label>
+      <input type="month" id="monthly-month">
+      <button class="fetch-btn" id="monthly-btn" onclick="fetchMonthly()">取得數據</button>
+      <div class="btn-row">
+        <button class="export-btn" onclick="exportText('monthly')">匯出 .txt</button>
+        <button class="export-btn" onclick="exportCSV('monthly')">匯出 .csv</button>
+      </div>
+    </div>
+    <div class="status-bar" id="monthly-status">
+      <div class="status-dot" id="monthly-dot"></div>
+      <span id="monthly-status-txt">選擇月份後點「取得數據」。美國總經來自 FRED（美聯儲），台灣數據請手動填入（點格子即可編輯）。</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">美國總體經濟</span><span class="tag tag-us">US MACRO</span></div>
+        <table class="data-table" id="t-us-macro">
+          <tr><td class="label">ISM 製造業 PMI</td><td class="value placeholder editable" contenteditable="true">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">ISM 非製造業 PMI</td><td class="value placeholder editable" contenteditable="true">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">失業率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">CPI (FRED指數值)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">Core CPI (FRED指數值)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">PCE (FRED指數值)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">Core PCE (FRED指數值)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">聯邦基金利率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">台灣總體經濟</span><span class="tag tag-tw">TW MACRO</span></div>
+        <table class="data-table" id="t-tw-macro">
+          <tr><td class="label">財政部出口統計 (億美元)</td><td class="value manual editable" contenteditable="true">點此填入</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">經濟部外銷訂單 (億美元)</td><td class="value manual editable" contenteditable="true">點此填入</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">景氣對策信號</td><td class="value manual editable" contenteditable="true">點此填入</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">台灣製造業 PMI</td><td class="value manual editable" contenteditable="true">點此填入</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">台灣非製造業 NMI</td><td class="value manual editable" contenteditable="true">點此填入</td><td class="change neutral">—</td></tr>
+        </table>
+        <div class="note">⚡ 黃色格子可直接點擊編輯，填入後會納入 AI 摘要</div>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:4px">
+      <span class="section-title">月收盤價格回顧</span>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">美國市場月收盤</span><span class="tag tag-us">US CLOSE</span></div>
+        <table class="data-table" id="t-us-close">
+          <tr><td class="label">S&amp;P 500 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">NASDAQ 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">道瓊 DJIA 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">美國10年期公債殖利率</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">DXY 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">黃金 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">台灣市場月收盤</span><span class="tag tag-tw">TW CLOSE</span></div>
+        <table class="data-table" id="t-tw-close">
+          <tr><td class="label">台灣加權指數 月收盤</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">台積電 2330.TW (TWD)</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+          <tr><td class="label">新台幣匯率 月底</td><td class="value placeholder">—</td><td class="change neutral">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title">Gemini AI 每月總經摘要</span>
+      <button class="copy-btn" onclick="copyEl('monthly-summary')">複製</button>
+    </div>
+    <div class="summary-box" id="monthly-summary">查詢後將自動生成當月總體經濟分析摘要…</div>
+  </div>
+
+</div>
+
+<script>
+const today = new Date();
+document.getElementById('daily-date').value = today.toISOString().split('T')[0];
+document.getElementById('monthly-month').value = today.toISOString().slice(0,7);
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-'+tab).classList.add('active');
+}
+
+function setStatus(p, state, msg) {
+  document.getElementById(p+'-dot').className = 'status-dot '+state;
+  document.getElementById(p+'-status-txt').textContent = msg;
+}
+
+function fillTable(id, rows) {
+  const trs = document.getElementById(id).querySelectorAll('tr');
+  rows.forEach((row, i) => {
+    if (!trs[i]) return;
+    const tds = trs[i].querySelectorAll('td');
+    const val = row?.value || '—';
+    const chg = row?.change || '—';
+    const dir = row?.dir || 'neutral';
+    if (tds[1] && !tds[1].isContentEditable) {
+      tds[1].textContent = val;
+      tds[1].className = 'value' + (val === '—' || val === '請手動填入' ? ' placeholder' : '');
+    }
+    if (tds[2]) {
+      tds[2].textContent = chg;
+      tds[2].className = 'change ' + dir;
+    }
+  });
+}
+
+async function fetchDaily() {
+  const date = document.getElementById('daily-date').value;
+  if (!date) return;
+  const btn = document.getElementById('daily-btn');
+  btn.disabled = true;
+  setStatus('daily', 'loading', `從 Yahoo Finance 取得 ${date} 行情中…`);
+  try {
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'daily', date })
+    });
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error||'Server error'); }
+    const d = await res.json();
+    fillTable('t-us',     [d.djia, d.sp500, d.nasdaq, d.sox, d.russell2000]);
+    fillTable('t-tw',     [d.taiex, d.tsmc, d.usdtwd]);
+    fillTable('t-bonds',  [d.us10y, d.us2y, d.us30y, d.agg]);
+    fillTable('t-fx',     [d.dxy, d.eurusd, d.usdjpy, d.gold]);
+    fillTable('t-energy', [d.wti, d.brent, d.btc]);
+    document.getElementById('daily-summary').textContent = d.summary || '摘要無法生成。';
+    setStatus('daily', 'done', `✓ ${date} 行情載入完成（Yahoo Finance 即時報價 + Gemini 摘要）`);
+  } catch(e) {
+    setStatus('daily', 'error', '查詢失敗：'+e.message);
+  }
+  btn.disabled = false;
+}
+
+async function fetchMonthly() {
+  const month = document.getElementById('monthly-month').value;
+  if (!month) return;
+  const btn = document.getElementById('monthly-btn');
+  btn.disabled = true;
+  setStatus('monthly', 'loading', `從 FRED（美聯儲）取得 ${month} 總經數據中…`);
+  try {
+    const res = await fetch('/api/query', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'monthly', month })
+    });
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error||'Server error'); }
+    const d = await res.json();
+    fillTable('t-us-macro',  [d.ism_mfg, d.ism_svc, d.unemployment, d.cpi_yoy, d.core_cpi_yoy, d.pce_yoy, d.core_pce_yoy, d.fed_rate]);
+    fillTable('t-tw-macro',  [d.tw_exports, d.tw_orders, d.tw_leading, d.tw_mfg_pmi, d.tw_svc_pmi]);
+    fillTable('t-us-close',  [d.sp500_close, d.nasdaq_close, d.djia_close, d.us10y_close, d.dxy_close, d.gold_close]);
+    fillTable('t-tw-close',  [d.taiex_close, d.tsmc_close, d.usdtwd_close]);
+    document.getElementById('monthly-summary').textContent = d.summary || '摘要無法生成。';
+    setStatus('monthly', 'done', `✓ ${month} 數據載入完成。台灣數據請手動點格子填入。`);
+  } catch(e) {
+    setStatus('monthly', 'error', '查詢失敗：'+e.message);
+  }
+  btn.disabled = false;
+}
+
+function copyEl(id) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{
+    const btn = event.target;
+    btn.textContent = '已複製 ✓';
+    setTimeout(()=>btn.textContent='複製', 1800);
+  });
+}
+
+function getTableRows(id) {
+  let out = '';
+  document.getElementById(id).querySelectorAll('tr').forEach(tr=>{
+    const tds = tr.querySelectorAll('td');
+    if (tds.length >= 2) out += `${tds[0].textContent.trim()}: ${tds[1].textContent.trim()} ${tds[2]?.textContent.trim()||''}\n`;
+  });
+  return out;
+}
+
+function exportText(mode) {
+  let content = '';
+  if (mode === 'daily') {
+    const date = document.getElementById('daily-date').value;
+    content = `MarketLog 每日行情報告\n日期：${date}\n${'═'.repeat(48)}\n\n`;
+    content += `【美國主要指數】\n${getTableRows('t-us')}\n`;
+    content += `【台灣市場】\n${getTableRows('t-tw')}\n`;
+    content += `【債券市場】\n${getTableRows('t-bonds')}\n`;
+    content += `【外匯市場】\n${getTableRows('t-fx')}\n`;
+    content += `【能源 & 加密】\n${getTableRows('t-energy')}\n`;
+    content += `\n【AI 摘要】\n${document.getElementById('daily-summary').textContent}`;
+    dl(`market-log-${date}.txt`, content);
+  } else {
+    const month = document.getElementById('monthly-month').value;
+    content = `MarketLog 每月總經報告\n月份：${month}\n${'═'.repeat(48)}\n\n`;
+    content += `【美國總體經濟】\n${getTableRows('t-us-macro')}\n`;
+    content += `【台灣總體經濟】\n${getTableRows('t-tw-macro')}\n`;
+    content += `【美國市場月收盤】\n${getTableRows('t-us-close')}\n`;
+    content += `【台灣市場月收盤】\n${getTableRows('t-tw-close')}\n`;
+    content += `\n【AI 摘要】\n${document.getElementById('monthly-summary').textContent}`;
+    dl(`market-log-${month}.txt`, content);
+  }
+}
+
+function exportCSV(mode) {
+  let rows = [['指標','數值','變化']];
+  const ids = mode === 'daily'
+    ? ['t-us','t-tw','t-bonds','t-fx','t-energy']
+    : ['t-us-macro','t-tw-macro','t-us-close','t-tw-close'];
+  ids.forEach(id => {
+    document.getElementById(id).querySelectorAll('tr').forEach(tr=>{
+      const tds = tr.querySelectorAll('td');
+      if (tds.length >= 2) rows.push([tds[0].textContent.trim(), tds[1].textContent.trim(), tds[2]?.textContent.trim()||'']);
+    });
+  });
+  const csv = rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const key = mode==='daily' ? document.getElementById('daily-date').value : document.getElementById('monthly-month').value;
+  dl(`market-log-${key}.csv`, '\uFEFF'+csv);
+}
+
+function dl(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+  a.download = name; a.click();
+}
+</script>
+</body>
+</html>
