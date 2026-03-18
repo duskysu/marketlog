@@ -1,6 +1,6 @@
-import yahooFinance from "yahoo-finance2";
+const yahooFinance = require("yahoo-finance2").default;
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -13,20 +13,16 @@ export default async function handler(req, res) {
   try {
     if (type === "daily") {
       const data = await fetchDailyData();
-      if (GEMINI_KEY) {
-        data.summary = await generateSummary(GEMINI_KEY, buildDailyPrompt(data, date));
-      } else {
-        data.summary = "（未設定 Gemini API 金鑰）";
-      }
+      data.summary = GEMINI_KEY
+        ? await generateSummary(GEMINI_KEY, buildDailyPrompt(data, date))
+        : "（未設定 Gemini API 金鑰）";
       return res.status(200).json(data);
     }
     if (type === "monthly") {
       const data = await fetchMonthlyData(month);
-      if (GEMINI_KEY) {
-        data.summary = await generateSummary(GEMINI_KEY, buildMonthlyPrompt(data, month));
-      } else {
-        data.summary = "（未設定 Gemini API 金鑰）";
-      }
+      data.summary = GEMINI_KEY
+        ? await generateSummary(GEMINI_KEY, buildMonthlyPrompt(data, month))
+        : "（未設定 Gemini API 金鑰）";
       return res.status(200).json(data);
     }
     return res.status(400).json({ error: "Invalid type" });
@@ -34,23 +30,25 @@ export default async function handler(req, res) {
     console.error(e);
     return res.status(500).json({ error: e.message });
   }
-}
+};
 
 async function getQuotes(symbols) {
   const results = {};
-  await Promise.all(symbols.map(async (sym) => {
-    try {
-      const q = await yahooFinance.quote(sym);
-      const chg = q.regularMarketChangePercent;
-      results[sym] = {
-        value: fmt(q.regularMarketPrice, sym),
-        change: chg != null ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "—",
-        dir: chg == null ? "neutral" : chg > 0 ? "pos" : chg < 0 ? "neg" : "neutral",
-      };
-    } catch {
-      results[sym] = empty();
-    }
-  }));
+  await Promise.all(
+    symbols.map(async (sym) => {
+      try {
+        const q = await yahooFinance.quote(sym, {}, { validateResult: false });
+        const chg = q.regularMarketChangePercent;
+        results[sym] = {
+          value: fmt(q.regularMarketPrice, sym),
+          change: chg != null ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "—",
+          dir: chg == null ? "neutral" : chg > 0 ? "pos" : chg < 0 ? "neg" : "neutral",
+        };
+      } catch {
+        results[sym] = empty();
+      }
+    })
+  );
   return results;
 }
 
@@ -74,25 +72,25 @@ async function fetchDailyData() {
   ];
   const q = await getQuotes(symbols);
   return {
-    djia:        q["^DJI"]      || empty(),
-    sp500:       q["^GSPC"]     || empty(),
-    nasdaq:      q["^IXIC"]     || empty(),
-    sox:         q["^SOX"]      || empty(),
-    russell2000: q["^RUT"]      || empty(),
-    taiex:       q["^TWII"]     || empty(),
-    tsmc:        q["2330.TW"]   || empty(),
-    usdtwd:      q["TWD=X"]     || empty(),
-    us10y:       q["^TNX"]      || empty(),
-    us2y:        q["^IRX"]      || empty(),
-    us30y:       q["^TYX"]      || empty(),
-    agg:         q["AGG"]       || empty(),
-    dxy:         q["DX-Y.NYB"]  || empty(),
-    eurusd:      q["EURUSD=X"]  || empty(),
-    usdjpy:      q["JPY=X"]     || empty(),
-    gold:        q["GC=F"]      || empty(),
-    wti:         q["CL=F"]      || empty(),
-    brent:       q["BZ=F"]      || empty(),
-    btc:         q["BTC-USD"]   || empty(),
+    djia:        q["^DJI"]     || empty(),
+    sp500:       q["^GSPC"]    || empty(),
+    nasdaq:      q["^IXIC"]    || empty(),
+    sox:         q["^SOX"]     || empty(),
+    russell2000: q["^RUT"]     || empty(),
+    taiex:       q["^TWII"]    || empty(),
+    tsmc:        q["2330.TW"]  || empty(),
+    usdtwd:      q["TWD=X"]    || empty(),
+    us10y:       q["^TNX"]     || empty(),
+    us2y:        q["^IRX"]     || empty(),
+    us30y:       q["^TYX"]     || empty(),
+    agg:         q["AGG"]      || empty(),
+    dxy:         q["DX-Y.NYB"] || empty(),
+    eurusd:      q["EURUSD=X"] || empty(),
+    usdjpy:      q["JPY=X"]    || empty(),
+    gold:        q["GC=F"]     || empty(),
+    wti:         q["CL=F"]     || empty(),
+    brent:       q["BZ=F"]     || empty(),
+    btc:         q["BTC-USD"]  || empty(),
   };
 }
 
@@ -132,7 +130,7 @@ async function fetchMonthlyData(month) {
 async function fetchFREDData(month) {
   const FRED_KEY = "cfa1b3b4a3e34ae5b0a4a71da2a2a2b4";
   const base = "https://api.stlouisfed.org/fred/series/observations";
-  const [year, mo] = (month || "").split("-");
+  const [year, mo] = (month || "2025-01").split("-");
   const obsStart = `${year}-${mo}-01`;
   const seriesMap = {
     unemployment: "UNRATE",
@@ -143,28 +141,30 @@ async function fetchFREDData(month) {
     fed_rate:     "FEDFUNDS",
   };
   const results = {};
-  await Promise.all(Object.entries(seriesMap).map(async ([key, id]) => {
-    try {
-      const url = `${base}?series_id=${id}&observation_start=${obsStart}&sort_order=desc&limit=2&file_type=json&api_key=${FRED_KEY}`;
-      const r = await fetch(url);
-      const json = await r.json();
-      const obs = json.observations?.[0];
-      if (obs && obs.value !== ".") {
-        const val = parseFloat(obs.value);
-        if (key === "fed_rate") {
-          results[key] = { value: val.toFixed(2) + "%", change: "—", dir: "neutral" };
-        } else if (key === "unemployment") {
-          results[key] = { value: val.toFixed(1) + "%", change: "—", dir: "neutral" };
+  await Promise.all(
+    Object.entries(seriesMap).map(async ([key, id]) => {
+      try {
+        const url = `${base}?series_id=${id}&observation_start=${obsStart}&sort_order=desc&limit=2&file_type=json&api_key=${FRED_KEY}`;
+        const r = await fetch(url);
+        const json = await r.json();
+        const obs = json.observations?.[0];
+        if (obs && obs.value !== ".") {
+          const val = parseFloat(obs.value);
+          if (key === "fed_rate") {
+            results[key] = { value: val.toFixed(2) + "%", change: "—", dir: "neutral" };
+          } else if (key === "unemployment") {
+            results[key] = { value: val.toFixed(1) + "%", change: "—", dir: "neutral" };
+          } else {
+            results[key] = { value: val.toFixed(1), change: "—", dir: "neutral" };
+          }
         } else {
-          results[key] = { value: val.toFixed(1), change: "—", dir: "neutral" };
+          results[key] = empty();
         }
-      } else {
+      } catch {
         results[key] = empty();
       }
-    } catch {
-      results[key] = empty();
-    }
-  }));
+    })
+  );
   return results;
 }
 
