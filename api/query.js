@@ -1,5 +1,3 @@
-const yahooFinance = require("yahoo-finance2").default;
-
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -33,22 +31,25 @@ module.exports = async function handler(req, res) {
 };
 
 async function getQuotes(symbols) {
+  const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(",")}&fields=regularMarketPrice,regularMarketChangePercent`;
+  const r = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Accept": "application/json",
+      "Referer": "https://finance.yahoo.com",
+    },
+  });
+  if (!r.ok) throw new Error(`Yahoo error ${r.status}`);
+  const json = await r.json();
   const results = {};
-  await Promise.all(
-    symbols.map(async (sym) => {
-      try {
-        const q = await yahooFinance.quote(sym, {}, { validateResult: false });
-        const chg = q.regularMarketChangePercent;
-        results[sym] = {
-          value: fmt(q.regularMarketPrice, sym),
-          change: chg != null ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "—",
-          dir: chg == null ? "neutral" : chg > 0 ? "pos" : chg < 0 ? "neg" : "neutral",
-        };
-      } catch {
-        results[sym] = empty();
-      }
-    })
-  );
+  for (const q of json.quoteResponse?.result || []) {
+    const chg = q.regularMarketChangePercent;
+    results[q.symbol] = {
+      value: fmt(q.regularMarketPrice, q.symbol),
+      change: chg != null ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "—",
+      dir: chg == null ? "neutral" : chg > 0 ? "pos" : chg < 0 ? "neg" : "neutral",
+    };
+  }
   return results;
 }
 
@@ -64,11 +65,11 @@ function fmt(val, sym) {
 
 async function fetchDailyData() {
   const symbols = [
-    "^DJI", "^GSPC", "^IXIC", "^SOX", "^RUT",
-    "^TWII", "2330.TW", "TWD=X",
-    "^TNX", "^IRX", "^TYX", "AGG",
-    "DX-Y.NYB", "EURUSD=X", "JPY=X",
-    "GC=F", "CL=F", "BZ=F", "BTC-USD",
+    "^DJI","^GSPC","^IXIC","^SOX","^RUT",
+    "^TWII","2330.TW","TWD=X",
+    "^TNX","^IRX","^TYX","AGG",
+    "DX-Y.NYB","EURUSD=X","JPY=X",
+    "GC=F","CL=F","BZ=F","BTC-USD",
   ];
   const q = await getQuotes(symbols);
   return {
@@ -96,8 +97,8 @@ async function fetchDailyData() {
 
 async function fetchMonthlyData(month) {
   const symbols = [
-    "^GSPC", "^IXIC", "^DJI", "^TNX",
-    "DX-Y.NYB", "GC=F", "^TWII", "2330.TW", "TWD=X",
+    "^GSPC","^IXIC","^DJI","^TNX",
+    "DX-Y.NYB","GC=F","^TWII","2330.TW","TWD=X",
   ];
   const q = await getQuotes(symbols);
   const macro = await fetchFREDData(month);
@@ -141,30 +142,26 @@ async function fetchFREDData(month) {
     fed_rate:     "FEDFUNDS",
   };
   const results = {};
-  await Promise.all(
-    Object.entries(seriesMap).map(async ([key, id]) => {
-      try {
-        const url = `${base}?series_id=${id}&observation_start=${obsStart}&sort_order=desc&limit=2&file_type=json&api_key=${FRED_KEY}`;
-        const r = await fetch(url);
-        const json = await r.json();
-        const obs = json.observations?.[0];
-        if (obs && obs.value !== ".") {
-          const val = parseFloat(obs.value);
-          if (key === "fed_rate") {
-            results[key] = { value: val.toFixed(2) + "%", change: "—", dir: "neutral" };
-          } else if (key === "unemployment") {
-            results[key] = { value: val.toFixed(1) + "%", change: "—", dir: "neutral" };
-          } else {
-            results[key] = { value: val.toFixed(1), change: "—", dir: "neutral" };
-          }
+  await Promise.all(Object.entries(seriesMap).map(async ([key, id]) => {
+    try {
+      const url = `${base}?series_id=${id}&observation_start=${obsStart}&sort_order=desc&limit=2&file_type=json&api_key=${FRED_KEY}`;
+      const r = await fetch(url);
+      const json = await r.json();
+      const obs = json.observations?.[0];
+      if (obs && obs.value !== ".") {
+        const val = parseFloat(obs.value);
+        if (key === "fed_rate") {
+          results[key] = { value: val.toFixed(2) + "%", change: "—", dir: "neutral" };
+        } else if (key === "unemployment") {
+          results[key] = { value: val.toFixed(1) + "%", change: "—", dir: "neutral" };
         } else {
-          results[key] = empty();
+          results[key] = { value: val.toFixed(1), change: "—", dir: "neutral" };
         }
-      } catch {
+      } else {
         results[key] = empty();
       }
-    })
-  );
+    } catch { results[key] = empty(); }
+  }));
   return results;
 }
 
