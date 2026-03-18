@@ -31,6 +31,20 @@ module.exports = async function handler(req, res) {
   }
 };
 
+// 循序查詢，每筆間隔 300ms 避免超過頻率限制
+async function fetchSequential(pairs, apiKey) {
+  const results = {};
+  for (const [key, sym] of pairs) {
+    results[key] = await tdQuote(sym, apiKey);
+    await sleep(300);
+  }
+  return results;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function tdQuote(symbol, apiKey) {
   try {
     const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
@@ -51,15 +65,8 @@ async function tdQuote(symbol, apiKey) {
   }
 }
 
-async function fetchMany(symbols, apiKey) {
-  const entries = await Promise.all(
-    symbols.map(async ([key, sym]) => [key, await tdQuote(sym, apiKey)])
-  );
-  return Object.fromEntries(entries);
-}
-
 async function fetchDailyData(apiKey) {
-  const q = await fetchMany([
+  const pairs = [
     ["djia",        "DJIA"],
     ["sp500",       "SPX"],
     ["nasdaq",      "IXIC"],
@@ -79,12 +86,12 @@ async function fetchDailyData(apiKey) {
     ["wti",         "WTI"],
     ["brent",       "BRENT"],
     ["btc",         "BTC/USD"],
-  ], apiKey);
-  return q;
+  ];
+  return await fetchSequential(pairs, apiKey);
 }
 
 async function fetchMonthlyData(apiKey, month) {
-  const q = await fetchMany([
+  const pairs = [
     ["sp500_close",  "SPX"],
     ["nasdaq_close", "IXIC"],
     ["djia_close",   "DJIA"],
@@ -94,10 +101,9 @@ async function fetchMonthlyData(apiKey, month) {
     ["taiex_close",  "TAIEX"],
     ["tsmc_close",   "2330:TWSE"],
     ["usdtwd_close", "USD/TWD"],
-  ], apiKey);
-
+  ];
+  const q = await fetchSequential(pairs, apiKey);
   const macro = await fetchFREDData(month);
-
   return {
     ism_mfg:      empty("請手動填入"),
     ism_svc:      empty("請手動填入"),
@@ -130,7 +136,7 @@ async function fetchFREDData(month) {
     fed_rate:     "FEDFUNDS",
   };
   const results = {};
-  await Promise.all(Object.entries(seriesMap).map(async ([key, id]) => {
+  for (const [key, id] of Object.entries(seriesMap)) {
     try {
       const url = `${base}?series_id=${id}&observation_start=${obsStart}&sort_order=desc&limit=2&file_type=json&api_key=${FRED_KEY}`;
       const r = await fetch(url);
@@ -149,7 +155,7 @@ async function fetchFREDData(month) {
         results[key] = empty();
       }
     } catch { results[key] = empty(); }
-  }));
+  }
   return results;
 }
 
